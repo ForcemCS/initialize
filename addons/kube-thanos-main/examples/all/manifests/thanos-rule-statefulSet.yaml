@@ -1,0 +1,153 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app.kubernetes.io/component: rule-evaluation-engine
+    app.kubernetes.io/instance: thanos-rule
+    app.kubernetes.io/name: thanos-rule
+    app.kubernetes.io/version: v0.30.2
+  name: thanos-rule
+  namespace: thanos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: rule-evaluation-engine
+      app.kubernetes.io/instance: thanos-rule
+      app.kubernetes.io/name: thanos-rule
+  serviceName: thanos-rule
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: rule-evaluation-engine
+        app.kubernetes.io/instance: thanos-rule
+        app.kubernetes.io/name: thanos-rule
+        app.kubernetes.io/version: v0.30.2
+    spec:
+      containers:
+      - args:
+        - rule
+        - --log.level=info
+        - --log.format=logfmt
+        - --grpc-address=0.0.0.0:10901
+        - --http-address=0.0.0.0:10902
+        - --objstore.config=$(OBJSTORE_CONFIG)
+        - --data-dir=/var/thanos/rule
+        - --label=rule_replica="$(NAME)"
+        - --alert.label-drop=rule_replica
+        - --tsdb.retention=48h
+        - --tsdb.block-duration=2h
+        - --query=dnssrv+_http._tcp.thanos-query.thanos.svc.cluster.local
+        - --alertmanagers.url=alertmanager:9093
+        - --alertmanagers.config-file=/etc/thanos/config/thanos-ruler-config/config.yaml
+        - --rule-file=/etc/thanos/rules/test/test
+        - |-
+          --tracing.config="config":
+            "sampler_param": 2
+            "sampler_type": "ratelimiting"
+            "service_name": "thanos-rule"
+          "type": "JAEGER"
+        - --remote-write.config-file=/etc/thanos/config/thanos-stateless-ruler-config/rw-config.yaml
+        env:
+        - name: NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: OBJSTORE_CONFIG
+          valueFrom:
+            secretKeyRef:
+              key: thanos.yaml
+              name: thanos-objectstorage
+        - name: HOST_IP_ADDRESS
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        image: quay.io/thanos/thanos:v0.30.2
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 24
+          httpGet:
+            path: /-/healthy
+            port: 10902
+            scheme: HTTP
+          periodSeconds: 5
+        name: thanos-rule
+        ports:
+        - containerPort: 10901
+          name: grpc
+        - containerPort: 10902
+          name: http
+        - containerPort: 9533
+          name: reloader
+        readinessProbe:
+          failureThreshold: 18
+          httpGet:
+            path: /-/ready
+            port: 10902
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          limits:
+            cpu: 0.42
+            memory: 420Mi
+          requests:
+            cpu: 0.123
+            memory: 123Mi
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+        - mountPath: /var/thanos/rule
+          name: data
+          readOnly: false
+        - mountPath: /etc/thanos/rules/test
+          name: test
+        - mountPath: /etc/thanos/config/thanos-ruler-config
+          name: thanos-ruler-config
+          readOnly: true
+        - mountPath: /etc/thanos/config/thanos-stateless-ruler-config
+          name: thanos-stateless-ruler-config
+          readOnly: true
+      - args:
+        - -webhook-url=http://localhost:10902/-/reload
+        - -volume-dir=/etc/thanos/rules/test
+        - -volume-dir=/etc/thanos/config/thanos-ruler-config
+        - -volume-dir=/etc/thanos/config/thanos-stateless-ruler-config
+        image: jimmidyson/configmap-reload:v0.5.0
+        imagePullPolicy: IfNotPresent
+        name: configmap-reloader
+        volumeMounts:
+        - mountPath: /etc/thanos/rules/test
+          name: test
+        - mountPath: /etc/thanos/config/thanos-ruler-config
+          name: thanos-ruler-config
+        - mountPath: /etc/thanos/config/thanos-stateless-ruler-config
+          name: thanos-stateless-ruler-config
+      nodeSelector:
+        kubernetes.io/os: linux
+      securityContext:
+        fsGroup: 65534
+        runAsUser: 65534
+      serviceAccountName: thanos-rule
+      volumes:
+      - configMap:
+          name: test
+        name: test
+      - configMap:
+          name: thanos-ruler-config
+        name: thanos-ruler-config
+      - configMap:
+          name: thanos-stateless-ruler-config
+        name: thanos-stateless-ruler-config
+  volumeClaimTemplates:
+  - metadata:
+      labels:
+        app.kubernetes.io/component: rule-evaluation-engine
+        app.kubernetes.io/instance: thanos-rule
+        app.kubernetes.io/name: thanos-rule
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi

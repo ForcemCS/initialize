@@ -1,0 +1,24 @@
+---
+- hosts: all
+  gather_facts: no
+  tasks:
+  - name: mkdir directory1 
+    file:
+      path: /etc/containerd/certs.d/ks.harbor.com
+      state: directory
+      mode: 755
+  - name:  mkdir directory2
+    file:
+      path: /etc/certs
+      state: directory
+      mode: 755
+  - name: copy file1
+    copy:
+      src: /root/initialize/playbook/hosts.toml
+      dest: /etc/containerd/certs.d/ks.harbor.com/hosts.toml
+      mode: '0644'
+  - name: copy file2
+    copy:
+      src: /root/initialize/playbook/ks.harbor.com.crt
+      dest: /etc/certs/ks.harbor.com.crt
+      mode: '0644'

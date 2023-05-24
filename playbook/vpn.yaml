@@ -1,0 +1,19 @@
+---
+- hosts: all
+  gather_facts: no
+  tasks:
+  - name: mkdir directory
+    file:
+      path: /root/vpn
+      state: directory
+      mode: 755
+  - name: copy file
+    copy:
+      src:  "{{item.src}}"
+      dest: "{{item.dest}}"
+      mode: '0644'
+    with_items:
+      - {src: "/root/initialize/vpn/libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb", dest: "/root/vpn"}
+      - {src: "/root/initialize/vpn/openvpn-xor-ubuntu-x86_64.deb", dest: "/root/vpn"}
+      - {src: "/root/initialize/vpn/str-sfo201_a356093.ovpn", dest: "/root/vpn"}
+

@@ -1,0 +1,4 @@
+server = "https://ks.harbor.com"
+
+[host."https://ks.harbor.com"]
+  ca = "/etc/certs/ks.harbor.com.crt"     #此处的证书是从harbor服务证书的拷贝
